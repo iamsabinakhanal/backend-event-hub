@@ -1,29 +1,31 @@
-import z from "zod";
-import { UserSchema } from "../types/user_type"; // ensure filename is correct
+import { userInfo } from 'node:os';
+import z from 'zod';
+import { UserSchema } from '../types/user_type';
 
-// ------------------- REGISTER DTO -------------------
-export const CreateUserSchema = UserSchema.pick({
-    firstName: true,
-    lastName: true,
-    email: true,
-    username: true,
-    password: true,
-}).extend({
-    confirmPassword: z.string()
-}).refine(
+export const CreateUserDTO = UserSchema.pick(
+    {
+        username: true,
+        email: true,
+        password: true,
+        firstName: true,
+        lastName: true,
+        role: true
+    }
+).extend(
+    {
+        confirmPassword: z.string().min(6)
+    }
+).refine(
     (data) => data.password === data.confirmPassword,
     {
         message: "Passwords do not match",
-        path: ["confirmPassword"],
+        path: ["confirmPassword"]
     }
-);
+)
+export type CreateUserDTO = z.infer<typeof CreateUserDTO>;
 
-export type CreateUserDTO = z.infer<typeof CreateUserSchema>;
-
-// ------------------- LOGIN DTO -------------------
-export const LoginUserSchema = z.object({
-    email: z.string().email("Invalid email address"),
-    password: z.string().min(6, "Password must be at least 6 characters"),
+export const LoginUserDTO = z.object({
+    email: z.email(),
+    password: z.string().min(6)
 });
-
-export type LoginUserDTO = z.infer<typeof LoginUserSchema>;
+export type LoginUserDTO = z.infer<typeof LoginUserDTO>;
