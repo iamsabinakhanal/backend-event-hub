@@ -1,10 +1,7 @@
 import dotenv from 'dotenv';
-import { process } from 'zod/v4/core';
 dotenv.config();
 
-export const PORT: number = 
-        process.env.PORT ? parseInt(process.env.PORT) : 5050;
-export const MONGODB_URI: string =
-        process.env.MONGODB_URI || 'mongodb://localhost:27017/webapi_backend';
-export const JWT_SECRET: string = 
-        process.env.JWT_SECRET || 'default_secret';
+export const PORT: number = process.env.PORT ? parseInt(process.env.PORT) : 5050;
+export const MONGODB_URI: string = process.env.MONGODB_URI || 'mongodb://localhost:27017/event_hub';
+export const JWT_SECRET: string = process.env.JWT_SECRET || 'default_secret';
+export const JWT_EXPIRES_IN: string = process.env.JWT_EXPIRES_IN || '1h';
