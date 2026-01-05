@@ -4,17 +4,7 @@ import { AuthController } from "../controller/auth_controller";
 const router = Router();
 const authController = new AuthController();
 
-/**
- * Authentication Routes for Event-Hub
- * - /register → User registration
- * - /login    → User login
- * 
- * Bind methods to preserve `this` context in class
- */
-router.post("/register", authController.register.bind(authController));
-router.post("/login", authController.login.bind(authController));
-
-// TODO: Add remaining auth routes (logout, refresh token, password reset, etc.)
+router.post("/register", (req, res, next) => authController.register(req, res));
+router.post("/login", (req, res, next) => authController.login(req, res));
 
 export default router;
- 

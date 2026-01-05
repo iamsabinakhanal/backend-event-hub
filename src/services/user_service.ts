@@ -3,9 +3,10 @@
 import { CreateUserDTO, LoginUserDTO } from "../dtos/user_dtos"; // ensure file is named user.dto.ts
 import { UserRepository } from "../repository/user_repository"; // ensure file is named user.repository.ts
 import * as bcrypt from "bcryptjs"; // TS-safe import
-import * as jwt from "jsonwebtoken"; // TS-safe import
+import jwt from "jsonwebtoken"; // Fixed: default import instead of namespace
 import { HttpError } from "../errors/http-errors"; // ensure file is named http-error.ts
 import { JWT_SECRET } from "../config"; // from config.ts
+import { SignOptions } from "jsonwebtoken"; // Add SignOptions import
 
 export class UserService {
     private userRepository = new UserRepository(); // decoupled repository
@@ -58,9 +59,11 @@ export class UserService {
             role: user.role,
         };
 
-        const token = jwt.sign(payload, JWT_SECRET, {
-            expiresIn: process.env.JWT_EXPIRES_IN || "30d", // configurable expiration
-        });
+        const signOptions: SignOptions = {
+            expiresIn: process.env.JWT_EXPIRES_IN || "30d" as any
+        };
+
+        const token = jwt.sign(payload, JWT_SECRET || "default_secret", signOptions);
 
         // 4️⃣ Return token + user
         return { token, user };
