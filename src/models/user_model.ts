@@ -1,51 +1,29 @@
 import mongoose, { Document, Schema } from "mongoose";
 import { UserType } from "../types/user_type";
-
-/**
- * User Schema for Event-Hub
- * Defines how user data is stored in MongoDB
- */
 const UserSchema: Schema = new Schema<UserType>(
     {
-        email: {
-            type: String,
-            required: true,
-            unique: true, // ensures no duplicate emails
-        },
-        password: {
-            type: String,
-            required: true, // hashed password
-        },
-        username: {
-            type: String,
-            required: true,
-            unique: true, // ensures no duplicate usernames
-        },
+        email: { type: String, required: true, unique: true, sparse: true, trim: true, lowercase: true },
+        password: { type: String, required: true },
         firstName: { type: String },
         lastName: { type: String },
+        image: { type: String }, // User profile image path
         role: {
             type: String,
-            enum: ['user', 'admin'], // restrict to these values
+            enum: ['user', 'admin'],
             default: 'user',
-        },
+        }
     },
     {
-        timestamps: true, // automatically adds createdAt and updatedAt
+        timestamps: true, // auto createdAt and updatedAt
     }
 );
 
-/**
- * IUser interface
- * Combines UserType from DTO/types and Mongoose Document
- */
-export interface IUser extends UserType, Document {
-    _id: mongoose.Types.ObjectId;
+export interface IUser extends UserType, Document { // combine UserType and Document
+    _id: mongoose.Types.ObjectId; // mongo related attribute/ custom attributes
     createdAt: Date;
     updatedAt: Date;
 }
 
-/**
- * UserModel
- * The actual Mongoose model to interact with the 'users' collection
- */
 export const UserModel = mongoose.model<IUser>('User', UserSchema);
+// UserModel is the mongoose model for User collection
+// db.users in MongoDB
