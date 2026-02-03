@@ -1,58 +1,43 @@
 import { UserModel, IUser } from "../models/user_model";
-
-/**
- * IUserRepository
- * Interface defining all database operations for the User entity
- */
 export interface IUserRepository {
     getUserByEmail(email: string): Promise<IUser | null>;
-    getUserByUsername(username: string): Promise<IUser | null>;
+    // Additional
+    // 5 common database queries for entity
+    createUser(userData: Partial<IUser>): Promise<IUser>;
     getUserById(id: string): Promise<IUser | null>;
     getAllUsers(): Promise<IUser[]>;
-    createUser(userData: Partial<IUser>): Promise<IUser>;
     updateUser(id: string, updateData: Partial<IUser>): Promise<IUser | null>;
     deleteUser(id: string): Promise<boolean>;
 }
-
-/**
- * UserRepository
- * MongoDB implementation of IUserRepository
- */
+// MongoDb Implementation of UserRepository
 export class UserRepository implements IUserRepository {
-    // ------------------- CREATE -------------------
     async createUser(userData: Partial<IUser>): Promise<IUser> {
-        const user = new UserModel(userData);
+        const user = new UserModel(userData); 
         return await user.save();
     }
-
-    // ------------------- READ -------------------
     async getUserByEmail(email: string): Promise<IUser | null> {
-        return await UserModel.findOne({ email });
-    }
-
-    async getUserByUsername(username: string): Promise<IUser | null> {
-        return await UserModel.findOne({ username });
+        const user = await UserModel.findOne({ "email": email })
+        return user;
     }
 
     async getUserById(id: string): Promise<IUser | null> {
-        return await UserModel.findById(id);
+        // UserModel.findOne({ "_id": id });
+        const user = await UserModel.findById(id);
+        return user;
     }
-
     async getAllUsers(): Promise<IUser[]> {
-        return await UserModel.find();
+        const users = await UserModel.find();
+        return users;
     }
-
-    // ------------------- UPDATE -------------------
     async updateUser(id: string, updateData: Partial<IUser>): Promise<IUser | null> {
-        return await UserModel.findByIdAndUpdate(
-            id,
-            updateData,
-            { new: true } // return the updated document
+        // UserModel.updateOne({ _id: id }, { $set: updateData });
+        const updatedUser = await UserModel.findByIdAndUpdate(
+            id, updateData, { new: true } // return the updated document
         );
+        return updatedUser;
     }
-
-    // ------------------- DELETE -------------------
     async deleteUser(id: string): Promise<boolean> {
+        // UserModel.deleteOne({ _id: id });
         const result = await UserModel.findByIdAndDelete(id);
         return result ? true : false;
     }
