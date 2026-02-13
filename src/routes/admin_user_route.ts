@@ -1,28 +1,20 @@
-import express from 'express';
-import { AdminUserController } from '../controller/admin/admin_controller';
-import { authMiddleware, adminMiddleware } from '../middleware/auth';
-import { upload } from '../config/multer';
+import { Router } from "express";
+import { authMiddleware as authorizedMiddleware, adminMiddleware as adminOnlyMiddleware } from "../middleware/auth";
+import { AdminUserController } from "../controller/admin/user_controller";
+import { upload as uploads } from "../config/multer";
 
-const router = express.Router();
-const adminUserController = new AdminUserController();
+let adminUserController = new AdminUserController();
 
-// Apply auth and admin middleware to all admin routes
-router.use(authMiddleware);
-router.use(adminMiddleware);
+const router = Router();
 
-// GET all users
-router.get('/users', (req, res) => adminUserController.getAllUsers(req, res));
+router.use(authorizedMiddleware);
+router.use(adminOnlyMiddleware);
 
-// GET user by ID
-router.get('/users/:id', (req, res) => adminUserController.getUserById(req, res));
-
-// POST create new user (with optional image upload)
-router.post('/users', upload.single('image'), (req, res) => adminUserController.createUser(req, res));
-
-// PUT update user (with optional image upload)
-router.put('/users/:id', upload.single('image'), (req, res) => adminUserController.updateUser(req, res));
-
-// DELETE user
-router.delete('/users/:id', (req, res) => adminUserController.deleteUser(req, res));
+router.post("/", uploads.single("image"), (req, res) => adminUserController.createUser(req, res));
+router.get("/", (req, res) => adminUserController.getAllUsers(req, res));
+router.put("/:id", uploads.single("image"), (req, res) => adminUserController.updateUser(req, res));
+router.delete("/:id", (req, res) => adminUserController.deleteUser(req, res));
+router.get("/:id", (req, res) => adminUserController.getUserById(req, res));
+router.put("/:id/role", (req, res) => adminUserController.changeUserRole(req, res));
 
 export default router;

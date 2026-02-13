@@ -1,0 +1,154 @@
+import { Request, Response } from "express";
+import { AdminUserService } from "../../services/admin/user_service";
+import { CreateUserDTO, UpdateUserDTO } from "../../dtos/user_dtos";
+import z from "zod";
+import { AuthRequest } from "../../middleware/auth";
+
+const adminUserService = new AdminUserService();
+
+export class AdminUserController {
+    // GET /api/admin/ - Get all users
+    async getAllUsers(req: Request, res: Response) {
+        try {
+            const users = await adminUserService.getAllUsers();
+
+            return res.status(200).json({
+                success: true,
+                message: "Users retrieved successfully",
+                data: users
+            });
+        } catch (error: any) {
+            console.error("[AdminUserController.getAllUsers] error", error);
+            return res.status(error.statusCode ?? 500).json({
+                success: false,
+                message: error.message || "Internal Server Error"
+            });
+        }
+    }
+
+    // GET /api/admin/:id - Get user by ID
+    async getUserById(req: Request, res: Response) {
+        try {
+            const { id } = req.params;
+            
+            const user = await adminUserService.getUserById(id);
+
+            return res.status(200).json({
+                success: true,
+                message: "User retrieved successfully",
+                data: user
+            });
+        } catch (error: any) {
+            console.error("[AdminUserController.getUserById] error", error);
+            return res.status(error.statusCode ?? 500).json({
+                success: false,
+                message: error.message || "Internal Server Error"
+            });
+        }
+    }
+
+    // POST /api/admin/ - Create new user (with image upload)
+    async createUser(req: Request, res: Response) {
+        try {
+            const parsedData = CreateUserDTO.safeParse(req.body);
+            
+            if (!parsedData.success) {
+                return res.status(400).json({
+                    success: false,
+                    message: z.prettifyError(parsedData.error)
+                });
+            }
+
+            const userData = parsedData.data;
+            const imagePath = req.file?.path;
+
+            const newUser = await adminUserService.createUser(userData, imagePath);
+
+            return res.status(201).json({
+                success: true,
+                message: "User created successfully",
+                data: newUser
+            });
+        } catch (error: any) {
+            console.error("[AdminUserController.createUser] error", error);
+            return res.status(error.statusCode ?? 500).json({
+                success: false,
+                message: error.message || "Internal Server Error"
+            });
+        }
+    }
+
+    // PUT /api/admin/:id - Update user (with image upload)
+    async updateUser(req: Request, res: Response) {
+        try {
+            const { id } = req.params;
+            const imagePath = req.file?.path;
+
+            const parsedData = UpdateUserDTO.safeParse(req.body);
+            
+            if (!parsedData.success) {
+                return res.status(400).json({
+                    success: false,
+                    message: z.prettifyError(parsedData.error)
+                });
+            }
+
+            const updateData = parsedData.data;
+            const updatedUser = await adminUserService.updateUser(id, updateData, imagePath);
+
+            return res.status(200).json({
+                success: true,
+                message: "User updated successfully",
+                data: updatedUser
+            });
+        } catch (error: any) {
+            console.error("[AdminUserController.updateUser] error", error);
+            return res.status(error.statusCode ?? 500).json({
+                success: false,
+                message: error.message || "Internal Server Error"
+            });
+        }
+    }
+
+    // DELETE /api/admin/:id - Delete user
+    async deleteUser(req: Request, res: Response) {
+        try {
+            const { id } = req.params;
+            
+            const deleted = await adminUserService.deleteUser(id);
+
+            return res.status(200).json({
+                success: true,
+                message: "User deleted successfully"
+            });
+        } catch (error: any) {
+            console.error("[AdminUserController.deleteUser] error", error);
+            return res.status(error.statusCode ?? 500).json({
+                success: false,
+                message: error.message || "Internal Server Error"
+            });
+        }
+    }
+
+    // PUT /api/admin/:id/role - Change user role
+    async changeUserRole(req: Request, res: Response) {
+        try {
+            const { id } = req.params;
+            const { role } = req.body;
+
+            const updatedUser = await adminUserService.changeUserRole(id, role);
+
+            return res.status(200).json({
+                success: true,
+                message: `User role changed to ${role}`,
+                data: updatedUser
+            });
+        } catch (error: any) {
+            console.error("[AdminUserController.changeUserRole] error", error);
+            return res.status(error.statusCode ?? 500).json({
+                success: false,
+                message: error.message || "Internal Server Error"
+            });
+        }
+    }
+}

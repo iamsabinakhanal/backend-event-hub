@@ -165,5 +165,63 @@ export class AuthController {
             });
         }
     }
+
+    // POST /api/auth/admin/create - Create admin user (admin only)
+    async createAdmin(req: Request, res: Response) {
+        try {
+            const authUser = (req as AuthRequest).user;
+
+            // Check if requesting user is an admin
+            if (!authUser || authUser.role !== 'admin') {
+                return res.status(403).json({
+                    success: false,
+                    message: "Only admins can create admin users"
+                });
+            }
+
+            const parsedData = CreateUserDTO.safeParse(req.body);
+            if (!parsedData.success) {
+                return res.status(400).json(
+                    { success: false, message: z.prettifyError(parsedData.error) }
+                )
+            }
+
+            const userData: CreateUserDTO = parsedData.data;
+            const { email, firstName, lastName } = userData;
+            console.log("[AuthController.createAdmin] incoming", { email, firstName, lastName });
+
+            // Check if email already exists
+            const emailCheck = await userRepository.getUserByEmail(userData.email.trim().toLowerCase());
+            if (emailCheck) {
+                return res.status(409).json(
+                    { success: false, message: "Email already exists" }
+                );
+            }
+
+            // Hash password
+            const hashedPassword = await bcryptjs.hash(userData.password, 10);
+
+            const newUser = await userRepository.createUser({
+                firstName: userData.firstName,
+                lastName: userData.lastName,
+                email: userData.email.trim().toLowerCase(),
+                password: hashedPassword,
+                role: 'admin' // Set role to admin
+            });
+
+            // Remove password from response
+            const userObj = newUser.toObject();
+            delete userObj.password;
+
+            return res.status(201).json(
+                { success: true, message: "Admin user created successfully", data: userObj }
+            );
+        } catch (error: Error | any) {
+            console.error("[AuthController.createAdmin] error", error);
+            return res.status(error.statusCode ?? 500).json(
+                { success: false, message: error.message || "Internal Server Error" }
+            );
+        }
+    }
     
 }
