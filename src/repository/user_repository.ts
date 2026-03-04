@@ -1,6 +1,7 @@
 import { UserModel, IUser } from "../models/user_model";
 export interface IUserRepository {
     getUserByEmail(email: string): Promise<IUser | null>;
+    getUserByResetToken(token: string): Promise<IUser | null>;
     // Additional
     // 5 common database queries for entity
     createUser(userData: Partial<IUser>): Promise<IUser>;
@@ -11,12 +12,20 @@ export interface IUserRepository {
 }
 // MongoDb Implementation of UserRepository
 export class UserRepository implements IUserRepository {
+    getAllUsersPaginated(arg0: { page: number; size: number; search: string; }): { users: any; totalUsers: any; } | PromiseLike<{ users: any; totalUsers: any; }> {
+        throw new Error("Method not implemented.");
+    }
     async createUser(userData: Partial<IUser>): Promise<IUser> {
         const user = new UserModel(userData); 
         return await user.save();
     }
     async getUserByEmail(email: string): Promise<IUser | null> {
         const user = await UserModel.findOne({ "email": email })
+        return user;
+    }
+
+    async getUserByResetToken(token: string): Promise<IUser | null> {
+        const user = await UserModel.findOne({ "resetToken": token });
         return user;
     }
 

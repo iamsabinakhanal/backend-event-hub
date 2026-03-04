@@ -1,1 +1,23 @@
+import { Router } from "express";
+import { authorizedMiddleware, adminOnlyMiddleware } from "../../middleware/authorization.middleware";
+import { AdminUserController } from "../../controller/admin/user_controller";
+import { uploads } from "../../middleware/upload.middleware";
+
+let adminUserController = new AdminUserController();
+
+const router = Router();
+
+router.use(authorizedMiddleware); 
+router.use(adminOnlyMiddleware); 
+
+// Dashboard route must come BEFORE /:id to prevent route collision
+router.get("/dashboard", adminUserController.getDashboard);
+
+router.post("/", uploads.single("image"), adminUserController.createUser);
+router.get("/", adminUserController.getAllUsers);
+router.put("/:id", uploads.single("image"), adminUserController.updateUser);
+router.delete("/:id", adminUserController.deleteUser);
+router.get("/:id", adminUserController.getUserById);
+
+export default router;
 

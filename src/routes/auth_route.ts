@@ -8,6 +8,14 @@ const router = Router();
 
 router.post("/register", authController.register)
 router.post("/login", authController.login)
+// GET /api/auth/whoami - Get current authenticated user
+router.get("/whoami", authMiddleware, (req, res) => authController.whoami(req, res))
+// PUT /api/auth/update-profile - Update current user's profile
+router.put("/update-profile", authMiddleware, upload.single('image'), (req, res) => authController.updateCurrentProfile(req, res))
+// POST /api/auth/request-password-reset - Request password reset
+router.post("/request-password-reset", (req, res) => authController.requestPasswordReset(req, res))
+// POST /api/auth/reset-password/:token - Reset password with token
+router.post("/reset-password/:token", (req, res) => authController.resetPassword(req, res))
 // POST /api/auth/admin/create - Create admin user (admin only)
 router.post("/admin/create", authMiddleware, adminMiddleware, (req, res) => authController.createAdmin(req, res))
 // PUT /api/auth/:id - Update user profile (protected, with optional image upload)

@@ -1,11 +1,46 @@
 import multer from 'multer';
 import path from 'path';
 import { randomUUID } from 'crypto';
+import fs from 'fs';
 
-// Define storage configuration
-const storage = multer.diskStorage({
+// Define storage configuration for users
+const userStorage = multer.diskStorage({
     destination: (req, file, cb) => {
-        cb(null, 'uploads/users'); // Make sure this directory exists
+        const dir = 'uploads/users';
+        if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true });
+        }
+        cb(null, dir);
+    },
+    filename: (req, file, cb) => {
+        const uniqueName = `${randomUUID()}${path.extname(file.originalname)}`;
+        cb(null, uniqueName);
+    }
+});
+
+// Define storage configuration for services
+const serviceStorage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        const dir = 'uploads/services';
+        if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true });
+        }
+        cb(null, dir);
+    },
+    filename: (req, file, cb) => {
+        const uniqueName = `${randomUUID()}${path.extname(file.originalname)}`;
+        cb(null, uniqueName);
+    }
+});
+
+// Define storage configuration for gallery
+const galleryStorage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        const dir = 'uploads/gallery';
+        if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true });
+        }
+        cb(null, dir);
     },
     filename: (req, file, cb) => {
         const uniqueName = `${randomUUID()}${path.extname(file.originalname)}`;
@@ -26,9 +61,27 @@ const fileFilter = (req: any, file: Express.Multer.File, cb: multer.FileFilterCa
     }
 };
 
-// Configure multer
+// Configure multer for users
 export const upload = multer({
-    storage: storage,
+    storage: userStorage,
+    limits: {
+        fileSize: 5 * 1024 * 1024 // 5MB limit
+    },
+    fileFilter: fileFilter
+});
+
+// Configure multer for services
+export const serviceUpload = multer({
+    storage: serviceStorage,
+    limits: {
+        fileSize: 5 * 1024 * 1024 // 5MB limit
+    },
+    fileFilter: fileFilter
+});
+
+// Configure multer for gallery
+export const galleryUpload = multer({
+    storage: galleryStorage,
     limits: {
         fileSize: 5 * 1024 * 1024 // 5MB limit
     },

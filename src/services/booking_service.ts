@@ -26,6 +26,13 @@ export class BookingService {
     }
 
     static async createBooking(userId: string, data: CreateBookingDTO) {
+        // Validate that event_date is not in the past
+        const eventDate = new Date(data.event_date);
+        const now = new Date();
+        if (eventDate <= now) {
+            throw new HttpError(400, "Event date cannot be in the past");
+        }
+
         const bookingData = {
             user_id: userId,
             service_id: data.service_id,
@@ -43,6 +50,16 @@ export class BookingService {
         if (!booking) {
             throw new HttpError(404, "Booking not found");
         }
+
+        // Validate that event_date is not in the past if provided
+        if (data.event_date) {
+            const eventDate = new Date(data.event_date);
+            const now = new Date();
+            if (eventDate <= now) {
+                throw new HttpError(400, "Event date cannot be in the past");
+            }
+        }
+
         return await bookingRepository.updateBooking(id, data);
     }
 

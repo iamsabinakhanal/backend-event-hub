@@ -13,19 +13,39 @@ export interface AuthRequest extends Request {
     };
 }
 
+// Helper function to extract token from cookies
+const getTokenFromCookies = (cookieHeader: string | undefined): string | null => {
+    if (!cookieHeader) return null;
+    const cookies = cookieHeader.split(';').reduce((acc, cookie) => {
+        const [key, value] = cookie.trim().split('=');
+        acc[key] = value;
+        return acc;
+    }, {} as Record<string, string>);
+    return cookies['auth_token'] || null;
+};
+
 // Middleware to verify JWT token
 export const authMiddleware = (req: Request, res: Response, next: NextFunction) => {
     try {
         const authHeader = req.headers.authorization;
+        let token: string | null = null;
 
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        // Try to get token from Authorization header first
+        if (authHeader && authHeader.startsWith('Bearer ')) {
+            token = authHeader.substring(7); // Remove 'Bearer ' prefix
+        }
+        
+        // If no Authorization header, try to get token from cookies
+        if (!token) {
+            token = getTokenFromCookies(req.headers.cookie);
+        }
+
+        if (!token) {
             return res.status(401).json({ 
                 success: false, 
                 message: 'No token provided' 
             });
         }
-
-        const token = authHeader.substring(7); // Remove 'Bearer ' prefix
 
         const decoded = jwt.verify(token, JWT_SECRET) as any;
         

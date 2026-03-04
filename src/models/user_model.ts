@@ -11,7 +11,9 @@ const UserSchema: Schema = new Schema<UserType>(
             type: String,
             enum: ['user', 'admin'],
             default: 'user',
-        }
+        },
+        resetToken: { type: String },
+        resetTokenExpiry: { type: Date },
     },
     {
         timestamps: true, // auto createdAt and updatedAt

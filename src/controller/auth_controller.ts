@@ -56,9 +56,23 @@ export class AuthController {
             }
             const loginData: LoginUserDTO = parsedData.data;
             const { token, user } = await userService.loginUser(loginData);
-            return res.status(200).json(
-                { success: true, message: "Login successful", data: user, token }
-            );
+            
+            // Set token as cookie
+            res.cookie('token', token, { httpOnly: true });
+            
+            // Remove sensitive data from response
+            const userObj = user.toObject ? user.toObject() : user;
+            delete userObj.password;
+            delete userObj.resetToken;
+            delete userObj.resetTokenExpiry;
+            
+            // Return JSON response with token and user data
+            return res.status(200).json({
+                success: true,
+                message: "Login successful",
+                token: token,
+                data: userObj
+            });
 
         } catch (error: Error | any) {
             return res.status(error.statusCode ?? 500).json(
@@ -130,7 +144,7 @@ export class AuthController {
                         console.error("Error deleting old image:", err);
                     }
                 }
-                updateData.image = req.file.path;
+                updateData.image = req.file.path.replace(/\\/g, "/");
             }
 
             const updatedUser = await userRepository.updateUser(id, updateData);
@@ -221,6 +235,250 @@ export class AuthController {
             return res.status(error.statusCode ?? 500).json(
                 { success: false, message: error.message || "Internal Server Error" }
             );
+        }
+    }
+
+    // GET /api/auth/whoami - Get current authenticated user
+    async whoami(req: Request, res: Response) {
+        try {
+            const authUser = (req as AuthRequest).user;
+
+            if (!authUser) {
+                return res.status(401).json({
+                    success: false,
+                    message: "Unauthorized"
+                });
+            }
+
+            const user = await userRepository.getUserById(authUser.id);
+            if (!user) {
+                return res.status(404).json({
+                    success: false,
+                    message: "User not found"
+                });
+            }
+
+            // Remove password from response
+            const userObj = user.toObject();
+            delete userObj.password;
+            delete userObj.resetToken;
+            delete userObj.resetTokenExpiry;
+
+            return res.status(200).json({
+                success: true,
+                data: userObj
+            });
+        } catch (error: Error | any) {
+            console.error("[AuthController.whoami] error", error);
+            return res.status(error.statusCode ?? 500).json({
+                success: false,
+                message: error.message || "Internal Server Error"
+            });
+        }
+    }
+
+    // PUT /api/auth/update-profile - Update current user's profile
+    async updateCurrentProfile(req: Request, res: Response) {
+        try {
+            const authUser = (req as AuthRequest).user;
+
+            if (!authUser) {
+                if (req.file) {
+                    fs.unlinkSync(req.file.path);
+                }
+                return res.status(401).json({
+                    success: false,
+                    message: "Unauthorized"
+                });
+            }
+
+            const userId = authUser.id;
+
+            // Check if user exists
+            const existingUser = await userRepository.getUserById(userId);
+            if (!existingUser) {
+                if (req.file) {
+                    fs.unlinkSync(req.file.path);
+                }
+                return res.status(404).json({
+                    success: false,
+                    message: "User not found"
+                });
+            }
+
+            const updateData: any = { ...req.body };
+
+            // Hash password if it's being updated
+            if (updateData.password) {
+                updateData.password = await bcryptjs.hash(updateData.password, 10);
+            }
+
+            // Normalize email if it's being updated
+            if (updateData.email) {
+                updateData.email = updateData.email.trim().toLowerCase();
+                
+                // Check if new email already exists
+                const emailExists = await userRepository.getUserByEmail(updateData.email);
+                if (emailExists && emailExists._id.toString() !== userId) {
+                    if (req.file) {
+                        fs.unlinkSync(req.file.path);
+                    }
+                    return res.status(409).json({
+                        success: false,
+                        message: "Email already exists"
+                    });
+                }
+            }
+
+            // Handle image upload
+            if (req.file) {
+                // Delete old image if it exists
+                if (existingUser.image) {
+                    try {
+                        fs.unlinkSync(existingUser.image);
+                    } catch (err) {
+                        console.error("Error deleting old image:", err);
+                    }
+                }
+                updateData.image = req.file.path.replace(/\\/g, "/");
+            }
+
+            const updatedUser = await userRepository.updateUser(userId, updateData);
+
+            if (!updatedUser) {
+                return res.status(404).json({
+                    success: false,
+                    message: "Failed to update profile"
+                });
+            }
+
+            // Remove password from response
+            const userObj = updatedUser.toObject();
+            delete userObj.password;
+            delete userObj.resetToken;
+            delete userObj.resetTokenExpiry;
+
+            return res.status(200).json({
+                success: true,
+                message: "Profile updated successfully",
+                data: userObj
+            });
+        } catch (error: any) {
+            console.error("[AuthController.updateCurrentProfile] error", error);
+            
+            // Delete uploaded file on error
+            if (req.file) {
+                fs.unlinkSync(req.file.path);
+            }
+
+            return res.status(error.statusCode ?? 500).json({
+                success: false,
+                message: error.message || "Internal Server Error"
+            });
+        }
+    }
+
+    // POST /api/auth/request-password-reset - Request password reset
+    async requestPasswordReset(req: Request, res: Response) {
+        try {
+            const { email } = req.body;
+
+            if (!email) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Email is required"
+                });
+            }
+
+            const user = await userRepository.getUserByEmail(email.trim().toLowerCase());
+            
+            // Don't reveal if user exists or not for security reasons
+            if (!user) {
+                return res.status(200).json({
+                    success: true,
+                    message: "If your email exists in our system, you will receive a password reset link"
+                });
+            }
+
+            // Generate reset token
+            const crypto = require('crypto');
+            const resetToken = crypto.randomBytes(32).toString('hex');
+            const resetTokenExpiry = new Date(Date.now() + 3600000); // 1 hour from now
+
+            // Save reset token to user
+            await userRepository.updateUser(user._id.toString(), {
+                resetToken,
+                resetTokenExpiry
+            });
+
+            // TODO: Send email with reset link
+            // For now, we'll just log it
+            console.log(`[AuthController.requestPasswordReset] Reset token for ${email}: ${resetToken}`);
+            console.log(`Reset link: http://localhost:3003/reset-password?token=${resetToken}`);
+
+            return res.status(200).json({
+                success: true,
+                message: "If your email exists in our system, you will receive a password reset link"
+            });
+        } catch (error: Error | any) {
+            console.error("[AuthController.requestPasswordReset] error", error);
+            return res.status(error.statusCode ?? 500).json({
+                success: false,
+                message: error.message || "Internal Server Error"
+            });
+        }
+    }
+
+    // POST /api/auth/reset-password/:token - Reset password with token
+    async resetPassword(req: Request, res: Response) {
+        try {
+            const { token } = req.params;
+            const { newPassword } = req.body;
+
+            if (!token || !newPassword) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Token and new password are required"
+                });
+            }
+
+            if (newPassword.length < 6) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Password must be at least 6 characters"
+                });
+            }
+
+            // Find user with valid reset token
+            const user = await userRepository.getUserByResetToken(token);
+
+            if (!user || !user.resetTokenExpiry || user.resetTokenExpiry < new Date()) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Invalid or expired reset token"
+                });
+            }
+
+            // Hash new password
+            const hashedPassword = await bcryptjs.hash(newPassword, 10);
+
+            // Update user's password and clear reset token
+            await userRepository.updateUser(user._id.toString(), {
+                password: hashedPassword,
+                resetToken: undefined,
+                resetTokenExpiry: undefined
+            });
+
+            return res.status(200).json({
+                success: true,
+                message: "Password reset successfully"
+            });
+        } catch (error: Error | any) {
+            console.error("[AuthController.resetPassword] error", error);
+            return res.status(error.statusCode ?? 500).json({
+                success: false,
+                message: error.message || "Internal Server Error"
+            });
         }
     }
     
