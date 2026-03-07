@@ -6,11 +6,66 @@ import { UserRepository } from "../repository/user_repository";
 import bcryptjs from "bcryptjs";
 import { AuthRequest } from "../middleware/auth";
 import fs from "fs";
+import { toPublicUploadUrl } from "../utils/file";
 
 let userService = new UserService();
 let userRepository = new UserRepository();
 
 export class AuthController {
+    private getUploadedImageFile(req: Request): Express.Multer.File | undefined {
+        const directFile = req.file as Express.Multer.File | undefined;
+        if (directFile) {
+            return directFile;
+        }
+
+        const files = req.files as
+            | { [fieldname: string]: Express.Multer.File[] }
+            | Express.Multer.File[]
+            | undefined;
+
+        if (!files) {
+            return undefined;
+        }
+
+        if (Array.isArray(files)) {
+            return files.find((file) => file.mimetype?.startsWith("image/")) ?? files[0];
+        }
+
+        return (
+            files.photo?.[0] ??
+            files.image?.[0] ??
+            files.profilePicture?.[0] ??
+            files.profile_image?.[0] ??
+            files.avatar?.[0]
+        );
+    }
+
+    private sanitizeUser(user: any) {
+        const userObj = user?.toObject ? user.toObject() : { ...user };
+        delete userObj.password;
+        delete userObj.resetToken;
+        delete userObj.resetTokenExpiry;
+
+        if (userObj.image) {
+            userObj.image = toPublicUploadUrl(userObj.image);
+        }
+
+        return userObj;
+    }
+
+    private deleteFileIfExists(filePath?: string) {
+        if (!filePath) {
+            return;
+        }
+        try {
+            if (fs.existsSync(filePath)) {
+                fs.unlinkSync(filePath);
+            }
+        } catch (err) {
+            console.error("[AuthController.deleteFileIfExists] error", err);
+        }
+    }
+
     async register(req: Request, res: Response) {
         try {
             const parsedData = CreateUserDTO.safeParse(req.body); // validate request body
@@ -24,7 +79,7 @@ export class AuthController {
             console.log("[AuthController.register] incoming", { email, firstName, lastName });
             const newUser = await userService.createUser(userData);
             return res.status(201).json(
-                { success: true, message: "User Created", data: newUser }
+                { success: true, message: "User Created", data: this.sanitizeUser(newUser) }
             );
         } catch (error: Error | any) { // exception handling
             console.error("[AuthController.register] error", {
@@ -58,13 +113,10 @@ export class AuthController {
             const { token, user } = await userService.loginUser(loginData);
             
             // Set token as cookie
-            res.cookie('token', token, { httpOnly: true });
+            res.cookie('auth_token', token, { httpOnly: true });
             
             // Remove sensitive data from response
-            const userObj = user.toObject ? user.toObject() : user;
-            delete userObj.password;
-            delete userObj.resetToken;
-            delete userObj.resetTokenExpiry;
+            const userObj = this.sanitizeUser(user);
             
             // Return JSON response with token and user data
             return res.status(200).json({
@@ -86,12 +138,11 @@ export class AuthController {
         try {
             const { id } = req.params;
             const authUser = (req as AuthRequest).user;
+            const uploadedFile = this.getUploadedImageFile(req);
 
             // Users can only update their own profile (unless they're admin)
             if (authUser?.id !== id && authUser?.role !== 'admin') {
-                if (req.file) {
-                    fs.unlinkSync(req.file.path);
-                }
+                this.deleteFileIfExists(uploadedFile?.path);
                 return res.status(403).json({
                     success: false,
                     message: "You can only update your own profile"
@@ -101,9 +152,7 @@ export class AuthController {
             // Check if user exists
             const existingUser = await userRepository.getUserById(id);
             if (!existingUser) {
-                if (req.file) {
-                    fs.unlinkSync(req.file.path);
-                }
+                this.deleteFileIfExists(uploadedFile?.path);
                 return res.status(404).json({
                     success: false,
                     message: "User not found"
@@ -124,9 +173,7 @@ export class AuthController {
                 // Check if new email already exists
                 const emailExists = await userRepository.getUserByEmail(updateData.email);
                 if (emailExists && emailExists._id.toString() !== id) {
-                    if (req.file) {
-                        fs.unlinkSync(req.file.path);
-                    }
+                    this.deleteFileIfExists(uploadedFile?.path);
                     return res.status(409).json({
                         success: false,
                         message: "Email already exists"
@@ -135,16 +182,12 @@ export class AuthController {
             }
 
             // Handle image upload
-            if (req.file) {
+            if (uploadedFile) {
                 // Delete old image if it exists
                 if (existingUser.image) {
-                    try {
-                        fs.unlinkSync(existingUser.image);
-                    } catch (err) {
-                        console.error("Error deleting old image:", err);
-                    }
+                    this.deleteFileIfExists(existingUser.image);
                 }
-                updateData.image = req.file.path.replace(/\\/g, "/");
+                updateData.image = uploadedFile.path.replace(/\\/g, "/");
             }
 
             const updatedUser = await userRepository.updateUser(id, updateData);
@@ -157,8 +200,7 @@ export class AuthController {
             }
 
             // Remove password from response
-            const userObj = updatedUser.toObject();
-            delete userObj.password;
+            const userObj = this.sanitizeUser(updatedUser);
 
             return res.status(200).json({
                 success: true,
@@ -169,9 +211,7 @@ export class AuthController {
             console.error("[AuthController.updateProfile] error", error);
             
             // Delete uploaded file on error
-            if (req.file) {
-                fs.unlinkSync(req.file.path);
-            }
+            this.deleteFileIfExists(this.getUploadedImageFile(req)?.path);
 
             return res.status(error.statusCode ?? 500).json({
                 success: false,
@@ -224,8 +264,7 @@ export class AuthController {
             });
 
             // Remove password from response
-            const userObj = newUser.toObject();
-            delete userObj.password;
+            const userObj = this.sanitizeUser(newUser);
 
             return res.status(201).json(
                 { success: true, message: "Admin user created successfully", data: userObj }
@@ -259,10 +298,7 @@ export class AuthController {
             }
 
             // Remove password from response
-            const userObj = user.toObject();
-            delete userObj.password;
-            delete userObj.resetToken;
-            delete userObj.resetTokenExpiry;
+            const userObj = this.sanitizeUser(user);
 
             return res.status(200).json({
                 success: true,
@@ -281,11 +317,10 @@ export class AuthController {
     async updateCurrentProfile(req: Request, res: Response) {
         try {
             const authUser = (req as AuthRequest).user;
+            const uploadedFile = this.getUploadedImageFile(req);
 
             if (!authUser) {
-                if (req.file) {
-                    fs.unlinkSync(req.file.path);
-                }
+                this.deleteFileIfExists(uploadedFile?.path);
                 return res.status(401).json({
                     success: false,
                     message: "Unauthorized"
@@ -297,9 +332,7 @@ export class AuthController {
             // Check if user exists
             const existingUser = await userRepository.getUserById(userId);
             if (!existingUser) {
-                if (req.file) {
-                    fs.unlinkSync(req.file.path);
-                }
+                this.deleteFileIfExists(uploadedFile?.path);
                 return res.status(404).json({
                     success: false,
                     message: "User not found"
@@ -320,9 +353,7 @@ export class AuthController {
                 // Check if new email already exists
                 const emailExists = await userRepository.getUserByEmail(updateData.email);
                 if (emailExists && emailExists._id.toString() !== userId) {
-                    if (req.file) {
-                        fs.unlinkSync(req.file.path);
-                    }
+                    this.deleteFileIfExists(uploadedFile?.path);
                     return res.status(409).json({
                         success: false,
                         message: "Email already exists"
@@ -331,16 +362,12 @@ export class AuthController {
             }
 
             // Handle image upload
-            if (req.file) {
+            if (uploadedFile) {
                 // Delete old image if it exists
                 if (existingUser.image) {
-                    try {
-                        fs.unlinkSync(existingUser.image);
-                    } catch (err) {
-                        console.error("Error deleting old image:", err);
-                    }
+                    this.deleteFileIfExists(existingUser.image);
                 }
-                updateData.image = req.file.path.replace(/\\/g, "/");
+                updateData.image = uploadedFile.path.replace(/\\/g, "/");
             }
 
             const updatedUser = await userRepository.updateUser(userId, updateData);
@@ -353,10 +380,7 @@ export class AuthController {
             }
 
             // Remove password from response
-            const userObj = updatedUser.toObject();
-            delete userObj.password;
-            delete userObj.resetToken;
-            delete userObj.resetTokenExpiry;
+            const userObj = this.sanitizeUser(updatedUser);
 
             return res.status(200).json({
                 success: true,
@@ -367,15 +391,36 @@ export class AuthController {
             console.error("[AuthController.updateCurrentProfile] error", error);
             
             // Delete uploaded file on error
-            if (req.file) {
-                fs.unlinkSync(req.file.path);
-            }
+            this.deleteFileIfExists(this.getUploadedImageFile(req)?.path);
 
             return res.status(error.statusCode ?? 500).json({
                 success: false,
                 message: error.message || "Internal Server Error"
             });
         }
+    }
+
+    // GET /api/auth/profile - alias for whoami used by profile page
+    async getProfile(req: Request, res: Response) {
+        return this.whoami(req, res);
+    }
+
+    // PUT /api/auth/profile - edit profile data and optional image
+    async updateProfilePage(req: Request, res: Response) {
+        return this.updateCurrentProfile(req, res);
+    }
+
+    // PATCH /api/auth/profile/photo - update only profile photo
+    async updateProfilePhoto(req: Request, res: Response) {
+        const uploadedFile = this.getUploadedImageFile(req);
+        if (!uploadedFile) {
+            return res.status(400).json({
+                success: false,
+                message: "Profile photo is required (send file as photo, image, profilePicture, profile_image, or avatar)"
+            });
+        }
+
+        return this.updateCurrentProfile(req, res);
     }
 
     // POST /api/auth/request-password-reset - Request password reset

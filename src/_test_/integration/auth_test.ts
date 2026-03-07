@@ -1,6 +1,7 @@
 import request from 'supertest';
 import app from '../../app';
 import { UserModel } from '../../models/user_model';
+import fs from 'fs';
 
 describe('Authentication Integration Tests', () => {
     let userToken: string;
@@ -267,6 +268,69 @@ describe('Authentication Integration Tests', () => {
             expect([200, 400, 403, 409]).toContain(res.status);
             if (res.status === 200) {
                 expect(res.body.data.email).toBe(testUser.email);
+            }
+        });
+    });
+
+    describe('Profile Page Endpoints', () => {
+        test('should get current profile via GET /api/auth/profile', async () => {
+            const res = await request(app)
+                .get('/api/auth/profile')
+                .set('Authorization', `Bearer ${userToken}`);
+
+            expect(res.status).toBe(200);
+            expect(res.body.data).toHaveProperty('_id');
+            expect(res.body.data.email).toBe(testUser.email);
+        });
+
+        test('should update profile via PUT /api/auth/profile', async () => {
+            const res = await request(app)
+                .put('/api/auth/profile')
+                .set('Authorization', `Bearer ${userToken}`)
+                .send({
+                    firstName: 'Profile',
+                    lastName: 'Updated'
+                });
+
+            expect(res.status).toBe(200);
+            expect(res.body.data.firstName).toBe('Profile');
+            expect(res.body.data.lastName).toBe('Updated');
+        });
+
+        test('should upload profile photo via PATCH /api/auth/profile/photo', async () => {
+            const res = await request(app)
+                .patch('/api/auth/profile/photo')
+                .set('Authorization', `Bearer ${userToken}`)
+                .attach('photo', Buffer.from('fake-image-content'), {
+                    filename: 'profile.png',
+                    contentType: 'image/png'
+                });
+
+            expect(res.status).toBe(200);
+            expect(res.body.data.image).toContain('/uploads/users/');
+
+            // Cleanup uploaded test image.
+            const uploadedPath = (res.body.data.image as string).replace(/^\/+/, '');
+            if (fs.existsSync(uploadedPath)) {
+                fs.unlinkSync(uploadedPath);
+            }
+        });
+
+        test('should upload profile photo using image field name', async () => {
+            const res = await request(app)
+                .patch('/api/auth/profile/photo')
+                .set('Authorization', `Bearer ${userToken}`)
+                .attach('image', Buffer.from('fake-image-content-2'), {
+                    filename: 'profile-2.png',
+                    contentType: 'image/png'
+                });
+
+            expect(res.status).toBe(200);
+            expect(res.body.data.image).toContain('/uploads/users/');
+
+            const uploadedPath = (res.body.data.image as string).replace(/^\/+/, '');
+            if (fs.existsSync(uploadedPath)) {
+                fs.unlinkSync(uploadedPath);
             }
         });
     });

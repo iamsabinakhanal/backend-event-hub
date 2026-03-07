@@ -53,7 +53,49 @@ app.use('/api/gallery', galleryRoutes);
 app.use('/api/services', servicesRoutes);
 app.use('/api/favorites', favoriteRoutes);
 app.get('/', (req: Request, res: Response) => {
-    return res.status(200).json({ success: "true", message: "Welcome to the API" });
+    return res.status(200).json({
+        success: true,
+        message: "Event Hub API",
+        version: "1.0.0",
+        endpoints: {
+            auth: {
+                register: "POST /api/auth/register",
+                login: "POST /api/auth/login",
+                profile: "GET /api/auth/profile",
+                updateProfile: "PUT /api/auth/profile",
+                updatePhoto: "PATCH /api/auth/profile/photo"
+            },
+            bookings: {
+                list: "GET /api/bookings",
+                create: "POST /api/bookings",
+                details: "GET /api/bookings/:id",
+                update: "PUT /api/bookings/:id",
+                delete: "DELETE /api/bookings/:id"
+            },
+            services: {
+                list: "GET /api/services",
+                create: "POST /api/services",
+                details: "GET /api/services/:id",
+                update: "PUT /api/services/:id",
+                delete: "DELETE /api/services/:id"
+            },
+            gallery: {
+                list: "GET /api/gallery",
+                upload: "POST /api/gallery",
+                delete: "DELETE /api/gallery/:id"
+            },
+            favorites: {
+                list: "GET /api/favorites",
+                add: "POST /api/favorites",
+                remove: "DELETE /api/favorites/:id"
+            },
+            contact: {
+                list: "GET /api/contact",
+                send: "POST /api/contact",
+                delete: "DELETE /api/contact/:id"
+            }
+        }
+    });
 });
 
 // Development endpoint to reset admin password (remove in production)
