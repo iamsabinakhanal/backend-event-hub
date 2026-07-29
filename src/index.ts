@@ -14,7 +14,6 @@ const app: Application = express();
 // ------------------ Debug Logs ------------------
 console.log("🔹 Event-Hub backend starting...");
 console.log("PORT:", PORT);
-console.log("Mongo URI:", process.env.MONGO_URI);
 
 // ------------------ Middleware ------------------
 app.use(bodyParser.json());
