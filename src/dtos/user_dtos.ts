@@ -26,6 +26,9 @@ export type CreateUserDTO = z.infer<typeof CreateUserDTO>;
 
 export const LoginUserDTO = z.object({
     email: z.email(),
-    password: z.string().min(6)
+    password: z.string().min(6),
+    totpCode: z.string().regex(/^\d{6}$/).optional(),
+    captchaQuestion: z.string().min(1),
+    captchaAnswer: z.string().min(1)
 });
 export type LoginUserDTO = z.infer<typeof LoginUserDTO>;
